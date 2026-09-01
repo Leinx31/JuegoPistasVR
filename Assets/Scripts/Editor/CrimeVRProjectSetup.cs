@@ -734,6 +734,9 @@ namespace CrimeVR.Editor
             GameObject leftRay = EnsureInteractorPrefab(scene, $"{StarterAssetsRoot}/Prefabs/Interactors/Ray Interactor.prefab", leftController, "Left Ray Interactor");
             GameObject rightRay = EnsureInteractorPrefab(scene, $"{StarterAssetsRoot}/Prefabs/Interactors/Teleport Interactor.prefab", rightController, "Right Teleport Interactor");
 
+            GameObject leftVisual = EnsureInteractorPrefab(scene, $"{StarterAssetsRoot}/Prefabs/Controllers/XR Controller Left.prefab", leftController, "XR Controller Left");
+            GameObject rightVisual = EnsureInteractorPrefab(scene, $"{StarterAssetsRoot}/Prefabs/Controllers/XR Controller Right.prefab", rightController, "XR Controller Right");
+
             ConfigureInteractorActivity(leftRay, false);
             ConfigureInteractorActivity(rightRay, true);
 
@@ -755,6 +758,8 @@ namespace CrimeVR.Editor
                 rightRay.GetComponent<XRRayInteractor>(),
                 holsterAnchor,
                 inspectionAnchor);
+
+            rigReferences.SetHandVisuals(leftVisual, rightVisual);
 
             PrefabUtility.SaveAsPrefabAssetAndConnect(rig, RigPrefabPath, InteractionMode.AutomatedAction);
             return rig;
@@ -857,10 +862,12 @@ namespace CrimeVR.Editor
             managers.transform.SetParent(systems.transform, false);
 
             VRInventorySystem inventorySystem = managers.AddComponent<VRInventorySystem>();
+            CaseManager caseManager = managers.AddComponent<CaseManager>();
             CrimeSceneSystemsRoot systemsRoot = managers.AddComponent<CrimeSceneSystemsRoot>();
             if (managers.GetComponent<ReturnToMenuController>() == null)
                 managers.AddComponent<ReturnToMenuController>();
             systemsRoot.Configure(rig.GetComponent<VRPlayerRigReferences>(), inventorySystem);
+            systemsRoot.SetCaseManager(caseManager);
 
             InventoryCollectorZone collectorZone = rig.GetComponentInChildren<InventoryCollectorZone>(true);
             if (collectorZone != null)

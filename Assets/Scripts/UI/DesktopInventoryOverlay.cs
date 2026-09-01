@@ -25,8 +25,15 @@ namespace CrimeVR.UI
 
         private readonly StringBuilder listBuilder = new StringBuilder(512);
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStaticState()
+        {
+            IsAnyOverlayOpen = false;
+        }
+
         private void Awake()
         {
+            IsAnyOverlayOpen = false;
             if (inventorySystem == null)
                 inventorySystem = FindAnyObjectByType<VRInventorySystem>();
 

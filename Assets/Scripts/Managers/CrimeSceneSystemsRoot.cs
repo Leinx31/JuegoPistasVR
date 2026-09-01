@@ -12,11 +12,15 @@ namespace CrimeVR.Managers
         [SerializeField] private VRInventorySystem inventorySystem;
         [SerializeField] private InventoryPanelView inventoryPanelView;
         [SerializeField] private ObjectInspectionController objectInspectionController;
+        [SerializeField] private CaseManager caseManager;
+        [SerializeField] private DetectiveNotebookUI detectiveNotebookUI;
 
         public VRPlayerRigReferences PlayerRig => playerRig;
         public VRInventorySystem InventorySystem => inventorySystem;
         public InventoryPanelView InventoryPanelView => inventoryPanelView;
         public ObjectInspectionController ObjectInspectionController => objectInspectionController;
+        public CaseManager CaseManager => caseManager;
+        public DetectiveNotebookUI DetectiveNotebookUI => detectiveNotebookUI;
 
         public void Configure(VRPlayerRigReferences rigReferences, VRInventorySystem inventory)
         {
@@ -32,6 +36,16 @@ namespace CrimeVR.Managers
         public void SetObjectInspectionController(ObjectInspectionController controller)
         {
             objectInspectionController = controller;
+        }
+
+        public void SetCaseManager(CaseManager manager)
+        {
+            caseManager = manager;
+        }
+
+        public void SetDetectiveNotebookUI(DetectiveNotebookUI notebookUI)
+        {
+            detectiveNotebookUI = notebookUI;
         }
     }
 }

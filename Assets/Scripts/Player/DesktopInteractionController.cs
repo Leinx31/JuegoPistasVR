@@ -47,8 +47,7 @@ namespace CrimeVR.Player
 
         private void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard == null || playerRigReferences == null || playerRigReferences.PlayerCamera == null)
+            if (playerRigReferences == null || playerRigReferences.PlayerCamera == null)
                 return;
 
             UpdateFocusHighlight();
@@ -56,22 +55,69 @@ namespace CrimeVR.Player
             if (DesktopInventoryOverlay.IsAnyOverlayOpen)
                 return;
 
-            if (keyboard.eKey.wasPressedThisFrame)
+            Keyboard keyboard = Keyboard.current;
+            Mouse mouse = Mouse.current;
+
+            bool grabTriggered = false;
+            if (mouse != null && mouse.leftButton.wasPressedThisFrame)
+                grabTriggered = true;
+            if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
+                grabTriggered = true;
+            try
+            {
+                if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.E))
+                    grabTriggered = true;
+            }
+            catch { }
+
+            if (grabTriggered)
                 HandleGrabOrRelease();
 
-            if (keyboard.rKey.wasPressedThisFrame)
+            bool inspectTriggered = false;
+            if (mouse != null && mouse.rightButton.wasPressedThisFrame)
+                inspectTriggered = true;
+            if (keyboard != null && keyboard.rKey.wasPressedThisFrame)
+                inspectTriggered = true;
+            try
+            {
+                if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.R))
+                    inspectTriggered = true;
+            }
+            catch { }
+
+            if (inspectTriggered)
                 ToggleInspection();
 
-            if (keyboard.iKey.wasPressedThisFrame)
+            bool inventoryTriggered = false;
+            if (keyboard != null && keyboard.iKey.wasPressedThisFrame) inventoryTriggered = true;
+            try { if (Input.GetKeyDown(KeyCode.I)) inventoryTriggered = true; } catch { }
+            if (inventoryTriggered)
                 ToggleInventory();
 
-            if (keyboard.fKey.wasPressedThisFrame)
+            bool flashTriggered = false;
+            if (keyboard != null && keyboard.fKey.wasPressedThisFrame) flashTriggered = true;
+            try { if (Input.GetKeyDown(KeyCode.F)) flashTriggered = true; } catch { }
+            if (flashTriggered)
                 ToggleHeldFlashlight();
 
-            if (keyboard.gKey.wasPressedThisFrame)
+            bool collectTriggered = false;
+            if (keyboard != null && keyboard.gKey.wasPressedThisFrame) collectTriggered = true;
+            try { if (Input.GetKeyDown(KeyCode.G)) collectTriggered = true; } catch { }
+            if (collectTriggered)
                 CollectHeldEvidence();
 
             UpdateHeldObjectPose();
+        }
+
+        private void OnGUI()
+        {
+            if (Application.isPlaying && !DesktopInventoryOverlay.IsAnyOverlayOpen)
+            {
+                float x = Screen.width / 2f;
+                float y = Screen.height / 2f;
+                GUI.color = focusedInspectable != null ? Color.cyan : new Color(1f, 1f, 1f, 0.65f);
+                GUI.DrawTexture(new Rect(x - 3f, y - 3f, 6f, 6f), Texture2D.whiteTexture);
+            }
         }
 
         private void EnsureHoldAnchor()
@@ -166,6 +212,13 @@ namespace CrimeVR.Player
 
             if (heldFlashlight != null)
                 heldFlashlight.SetDesktopHeldState(true);
+
+            // Disparar audio 3D y registro de pista en libreta
+            ClueInteractable clue = interactable.GetComponent<ClueInteractable>();
+            if (clue != null)
+            {
+                clue.TriggerInspection();
+            }
         }
 
         private void ReleaseHeldObject()

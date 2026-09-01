@@ -6,7 +6,11 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.XR.Interaction.Toolkit.Locomotion.Teleportation;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using CrimeVR.Managers;
+using CrimeVR.Evidence;
+using CrimeVR.UI;
+using CrimeVR.Player;
 using System.Collections.Generic;
 
 namespace CrimeVR.Editor
@@ -63,11 +67,15 @@ namespace CrimeVR.Editor
             CreateEnvironment(scene);
             ApplySceneMaterialAssignments();
 
+            EnsureClueAssets();
+            CreateInvestigationClues(scene, rig);
+            CreateDetectiveNotebook(scene, rig);
+
             EditorSceneManager.SaveScene(scene, ExpoScenePath);
             AddSceneToBuildSettings();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("Escena ExpoMap_Exploration creada correctamente.");
+            Debug.Log("Escena ExpoMap_Exploration creada con pistas interactivas y libreta del detective.");
         }
 
         [MenuItem("Tools/Crime VR/Add Expo Map To Clean Quest Scene")]
@@ -494,6 +502,17 @@ namespace CrimeVR.Editor
             return root.transform;
         }
 
+        private static Transform FindOrCreateChild(Transform parent, string childName)
+        {
+            Transform existing = parent.Find(childName);
+            if (existing != null)
+                return existing;
+
+            GameObject child = new GameObject(childName);
+            child.transform.SetParent(parent, false);
+            return child.transform;
+        }
+
         private static GameObject CreatePlayerRig(Scene scene)
         {
             MethodInfo method = typeof(CrimeVRProjectSetup).GetMethod("CreatePlayerRig", BindingFlags.NonPublic | BindingFlags.Static);
@@ -510,6 +529,197 @@ namespace CrimeVR.Editor
         {
             MethodInfo method = typeof(CrimeVRProjectSetup).GetMethod("CreateXRDeviceSimulator", BindingFlags.NonPublic | BindingFlags.Static);
             method.Invoke(null, new object[] { scene });
+        }
+
+        private static void EnsureClueAssets()
+        {
+            EnsureFolder("Assets/Resources");
+            EnsureFolder("Assets/Resources/Clues");
+
+            CreateOrLoadClueData("Assets/Resources/Clues/Clue_Revolver.asset", "clue.revolver.001",
+                "Revolver Calibre .38", "Arma homicida arrojada cerca del callejon tras el crimen.", true, "Arma");
+
+            CreateOrLoadClueData("Assets/Resources/Clues/Clue_Letter.asset", "clue.note.001",
+                "Nota Amenazante", "Mensaje manuscrito que incrimina directamente al sospechoso.", true, "Documento");
+
+            CreateOrLoadClueData("Assets/Resources/Clues/Clue_Keycard.asset", "clue.keycard.001",
+                "Tarjeta de Acceso VIP", "Tarjeta codificada encontrada en las inmediaciones del edificio.", true, "Acceso");
+
+            CreateOrLoadClueData("Assets/Resources/Clues/Clue_CoffeeCup.asset", "clue.coffee.001",
+                "Vaso de Cafe Desechable", "Vaso abandonado de un transeunte cualquiera, sin relevancia.", false, "Distraccion");
+        }
+
+        private static ClueData CreateOrLoadClueData(string assetPath, string id, string name, string desc, bool isTrue, string category)
+        {
+            ClueData data = AssetDatabase.LoadAssetAtPath<ClueData>(assetPath);
+            if (data == null)
+            {
+                data = ScriptableObject.CreateInstance<ClueData>();
+                data.Initialize(id, name, desc, isTrue, null, null, category);
+                AssetDatabase.CreateAsset(data, assetPath);
+            }
+            return data;
+        }
+
+        private static void CreateInvestigationClues(Scene scene, GameObject rig)
+        {
+            Transform interactionRoot = FindOrCreateRoot(scene, "Interaction");
+            Transform cluesRoot = FindOrCreateChild(interactionRoot, "CaseClues");
+
+            Vector3 spawnPos = rig != null ? rig.transform.position : Vector3.zero;
+
+            ClueData revolverData = AssetDatabase.LoadAssetAtPath<ClueData>("Assets/Resources/Clues/Clue_Revolver.asset");
+            ClueData letterData = AssetDatabase.LoadAssetAtPath<ClueData>("Assets/Resources/Clues/Clue_Letter.asset");
+            ClueData keycardData = AssetDatabase.LoadAssetAtPath<ClueData>("Assets/Resources/Clues/Clue_Keycard.asset");
+            ClueData cupData = AssetDatabase.LoadAssetAtPath<ClueData>("Assets/Resources/Clues/Clue_CoffeeCup.asset");
+
+            SpawnPhysicalClue(cluesRoot, "Clue_Revolver_Object", spawnPos + new Vector3(1.5f, 0.8f, 2.0f), new Vector3(0.12f, 0.05f, 0.22f), new Color(0.18f, 0.2f, 0.22f), revolverData);
+            SpawnPhysicalClue(cluesRoot, "Clue_ThreatLetter_Object", spawnPos + new Vector3(-1.8f, 0.75f, 2.5f), new Vector3(0.2f, 0.01f, 0.28f), new Color(0.92f, 0.88f, 0.75f), letterData);
+            SpawnPhysicalClue(cluesRoot, "Clue_Keycard_Object", spawnPos + new Vector3(0.8f, 0.75f, 3.5f), new Vector3(0.08f, 0.01f, 0.14f), new Color(0.1f, 0.45f, 0.9f), keycardData);
+            SpawnPhysicalClue(cluesRoot, "Clue_CoffeeCup_Object", spawnPos + new Vector3(-0.9f, 0.75f, 1.2f), new Vector3(0.1f, 0.15f, 0.1f), new Color(0.85f, 0.85f, 0.85f), cupData);
+        }
+
+        private static GameObject SpawnPhysicalClue(Transform parent, string objectName, Vector3 position, Vector3 scale, Color color, ClueData data)
+        {
+            GameObject clueObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            clueObj.name = objectName;
+            clueObj.transform.SetParent(parent, false);
+            clueObj.transform.position = position;
+            clueObj.transform.localScale = scale;
+
+            Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            mat.SetColor("_BaseColor", color);
+            clueObj.GetComponent<Renderer>().sharedMaterial = mat;
+
+            Rigidbody rb = clueObj.AddComponent<Rigidbody>();
+            rb.mass = 0.5f;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+
+            XRGrabInteractable grab = clueObj.AddComponent<XRGrabInteractable>();
+            grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
+
+            AudioSource audio = clueObj.AddComponent<AudioSource>();
+            audio.spatialBlend = 1f;
+            audio.playOnAwake = false;
+
+            ClueInteractable clueInteractable = clueObj.AddComponent<ClueInteractable>();
+            clueInteractable.SetClueData(data);
+
+            return clueObj;
+        }
+
+        private static void CreateDetectiveNotebook(Scene scene, GameObject rig)
+        {
+            Transform uiRoot = FindOrCreateRoot(scene, "UI_Root");
+            GameObject canvasObj = new GameObject("DetectiveNotebook_Canvas");
+            canvasObj.transform.SetParent(uiRoot, false);
+
+            Vector3 playerPos = rig != null ? rig.transform.position : Vector3.zero;
+            canvasObj.transform.position = playerPos + new Vector3(0f, 1.2f, 1.4f);
+            canvasObj.transform.rotation = Quaternion.identity;
+
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            RectTransform canvasRect = canvasObj.GetComponent<RectTransform>();
+            canvasRect.sizeDelta = new Vector2(500f, 350f);
+            canvasRect.localScale = Vector3.one * 0.002f;
+
+            canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+            canvasObj.AddComponent<UnityEngine.XR.Interaction.Toolkit.UI.TrackedDeviceGraphicRaycaster>();
+
+            // Fondo
+            GameObject bgObj = new GameObject("Background");
+            bgObj.transform.SetParent(canvasObj.transform, false);
+            UnityEngine.UI.Image bgImage = bgObj.AddComponent<UnityEngine.UI.Image>();
+            bgImage.color = new Color(0.12f, 0.14f, 0.18f, 0.95f);
+            RectTransform bgRect = bgObj.GetComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.sizeDelta = Vector2.zero;
+
+            // Titulo
+            GameObject titleObj = new GameObject("TitleText");
+            titleObj.transform.SetParent(canvasObj.transform, false);
+            TMPro.TextMeshProUGUI titleText = titleObj.AddComponent<TMPro.TextMeshProUGUI>();
+            titleText.text = "LIBRETA DEL DETECTIVE - EXPEDIENTE 506";
+            titleText.fontSize = 20f;
+            titleText.fontStyle = TMPro.FontStyles.Bold;
+            titleText.alignment = TMPro.TextAlignmentOptions.Center;
+            RectTransform titleRect = titleObj.GetComponent<RectTransform>();
+            titleRect.anchoredPosition = new Vector2(0f, 135f);
+            titleRect.sizeDelta = new Vector2(460f, 40f);
+
+            // Contador progreso
+            GameObject progObj = new GameObject("ProgressText");
+            progObj.transform.SetParent(canvasObj.transform, false);
+            TMPro.TextMeshProUGUI progText = progObj.AddComponent<TMPro.TextMeshProUGUI>();
+            progText.text = "Pistas Clave: 0/3 | Pistas Erradas: 0/2";
+            progText.fontSize = 14f;
+            progText.alignment = TMPro.TextAlignmentOptions.Center;
+            progText.color = new Color(0.9f, 0.8f, 0.3f);
+            RectTransform progRect = progObj.GetComponent<RectTransform>();
+            progRect.anchoredPosition = new Vector2(0f, 95f);
+            progRect.sizeDelta = new Vector2(460f, 30f);
+
+            // Contenedor lista
+            GameObject containerObj = new GameObject("CluesContainer");
+            containerObj.transform.SetParent(canvasObj.transform, false);
+            RectTransform containerRect = containerObj.AddComponent<RectTransform>();
+            containerRect.anchoredPosition = new Vector2(0f, -5f);
+            containerRect.sizeDelta = new Vector2(460f, 150f);
+            UnityEngine.UI.VerticalLayoutGroup layout = containerObj.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.spacing = 6f;
+
+            // Boton Concluir
+            GameObject btnObj = new GameObject("SolveButton");
+            btnObj.transform.SetParent(canvasObj.transform, false);
+            UnityEngine.UI.Image btnImg = btnObj.AddComponent<UnityEngine.UI.Image>();
+            btnImg.color = new Color(0.2f, 0.6f, 0.3f);
+            UnityEngine.UI.Button btn = btnObj.AddComponent<UnityEngine.UI.Button>();
+            RectTransform btnRect = btnObj.GetComponent<RectTransform>();
+            btnRect.anchoredPosition = new Vector2(0f, -125f);
+            btnRect.sizeDelta = new Vector2(220f, 42f);
+
+            GameObject btnTextObj = new GameObject("Text");
+            btnTextObj.transform.SetParent(btnObj.transform, false);
+            TMPro.TextMeshProUGUI btnText = btnTextObj.AddComponent<TMPro.TextMeshProUGUI>();
+            btnText.text = "CONCLUIR CASO";
+            btnText.fontSize = 16f;
+            btnText.fontStyle = TMPro.FontStyles.Bold;
+            btnText.alignment = TMPro.TextAlignmentOptions.Center;
+            RectTransform btnTextRect = btnTextObj.GetComponent<RectTransform>();
+            btnTextRect.anchorMin = Vector2.zero;
+            btnTextRect.anchorMax = Vector2.one;
+            btnTextRect.sizeDelta = Vector2.zero;
+
+            // Mensaje de estado
+            GameObject statusObj = new GameObject("StatusMessage");
+            statusObj.transform.SetParent(canvasObj.transform, false);
+            TMPro.TextMeshProUGUI statusText = statusObj.AddComponent<TMPro.TextMeshProUGUI>();
+            statusText.text = "Reúne las 3 pistas clave para emitir la acusación.";
+            statusText.fontSize = 12f;
+            statusText.alignment = TMPro.TextAlignmentOptions.Center;
+            RectTransform statusRect = statusObj.GetComponent<RectTransform>();
+            statusRect.anchoredPosition = new Vector2(0f, -160f);
+            statusRect.sizeDelta = new Vector2(460f, 25f);
+
+            // Componente UI
+            DetectiveNotebookUI notebookUI = canvasObj.AddComponent<DetectiveNotebookUI>();
+            SerializedObject serializedUI = new SerializedObject(notebookUI);
+            serializedUI.FindProperty("caseTitleText").objectReferenceValue = titleText;
+            serializedUI.FindProperty("progressText").objectReferenceValue = progText;
+            serializedUI.FindProperty("statusMessageText").objectReferenceValue = statusText;
+            serializedUI.FindProperty("clueListContainer").objectReferenceValue = containerObj.transform;
+            serializedUI.FindProperty("solveCaseButton").objectReferenceValue = btn;
+            serializedUI.ApplyModifiedProperties();
+
+            CrimeSceneSystemsRoot systemsRoot = Object.FindAnyObjectByType<CrimeSceneSystemsRoot>();
+            if (systemsRoot != null)
+                systemsRoot.SetDetectiveNotebookUI(notebookUI);
         }
 
         private static void EnableDesktopRigComponents(Scene scene)

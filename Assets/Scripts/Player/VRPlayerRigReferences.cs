@@ -24,16 +24,20 @@ namespace CrimeVR.Player
         [SerializeField] private XRRayInteractor leftRayInteractor;
         [SerializeField] private XRRayInteractor rightRayInteractor;
 
+        [Header("Hand Visuals")]
+        [SerializeField] private GameObject leftHandVisual;
+        [SerializeField] private GameObject rightHandVisual;
+
         [Header("Gameplay Anchors")]
         [SerializeField] private Transform inventoryHolsterAnchor;
         [SerializeField] private Transform inspectionAnchor;
 
         [Header("Runtime Safety")]
-        [SerializeField] private bool createSafetyFloorAtRuntime = true;
+        [SerializeField] private bool createSafetyFloorAtRuntime = false;
         [SerializeField] private Vector3 safetyFloorSize = new Vector3(1000f, 4f, 1000f);
-        [SerializeField] private float safetyFloorY = 0f;
-        [SerializeField] private float respawnHeightThreshold = 0.25f;
-        [SerializeField] private float respawnYOffset = 1.25f;
+        [SerializeField] private float safetyFloorY = -25f;
+        [SerializeField] private float respawnHeightThreshold = -20f;
+        [SerializeField] private float respawnYOffset = 2f;
         [SerializeField] private float idleGroundingSpeed = 2.5f;
 
         [Header("Head Tracking Fallback")]
@@ -58,6 +62,8 @@ namespace CrimeVR.Player
         public XRDirectInteractor RightDirectInteractor => rightDirectInteractor;
         public XRRayInteractor LeftRayInteractor => leftRayInteractor;
         public XRRayInteractor RightRayInteractor => rightRayInteractor;
+        public GameObject LeftHandVisual => leftHandVisual;
+        public GameObject RightHandVisual => rightHandVisual;
         public Transform InventoryHolsterAnchor => inventoryHolsterAnchor;
         public Transform InspectionAnchor => inspectionAnchor;
 
@@ -90,8 +96,6 @@ namespace CrimeVR.Player
                 return;
 
             ApplyHeadTrackingFallback();
-            UpdateCharacterControllerToHeadsetHeight();
-            ApplyIdleGrounding();
 
             if (rigRoot.position.y < respawnHeightThreshold)
                 RestoreSafeSpawn();
@@ -134,6 +138,12 @@ namespace CrimeVR.Player
                 initialRigPosition = rigRoot.position;
                 initialRigRotation = rigRoot.rotation;
             }
+        }
+
+        public void SetHandVisuals(GameObject leftVisual, GameObject rightVisual)
+        {
+            leftHandVisual = leftVisual;
+            rightHandVisual = rightVisual;
         }
 
         private void EnsureRuntimeSafetyFloor()
@@ -293,7 +303,8 @@ namespace CrimeVR.Player
                 controller.enabled = false;
 
             Vector3 safePosition = initialRigPosition;
-            safePosition.y = Mathf.Max(initialRigPosition.y, safetyFloorY + respawnYOffset);
+            if (safePosition.y < 0.5f)
+                safePosition.y = 0.5f;
 
             rigRoot.SetPositionAndRotation(safePosition, initialRigRotation);
 
@@ -303,7 +314,7 @@ namespace CrimeVR.Player
 
         private void ApplyIdleGrounding()
         {
-            if (characterController == null || !characterController.enabled)
+            if (characterController == null || !characterController.enabled || characterController.isGrounded)
                 return;
 
             characterController.Move(Vector3.down * (idleGroundingSpeed * Time.deltaTime));
